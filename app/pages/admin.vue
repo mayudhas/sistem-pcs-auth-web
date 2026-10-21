@@ -10,7 +10,9 @@ const toast = useToast()
 // Data state
 const activeTab = ref('apps')
 const apps = ref<any[]>([])
+const accounts = ref<any[]>([])
 const isLoadingApps = ref(false)
+const isLoadingAccounts = ref(false)
 
 // Forms
 const newApp = reactive({
@@ -43,6 +45,18 @@ async function fetchApps() {
   }
 }
 
+async function fetchAccounts() {
+  isLoadingAccounts.value = true
+  try {
+    const res: any = await $fetch(`${authApi}/auth/accounts`)
+    accounts.value = res.data || []
+  } catch (err: any) {
+    console.error(err)
+  } finally {
+    isLoadingAccounts.value = false
+  }
+}
+
 async function handleCreateApp() {
   try {
     await $fetch(`${authApi}/apps`, {
@@ -59,19 +73,52 @@ async function handleCreateApp() {
   }
 }
 
+async function handleDeleteApp(appId: string) {
+  if (!confirm(`Yakin ingin menghapus aplikasi '${appId}' dari SSO?`)) return
+
+  try {
+    await $fetch(`${authApi}/apps/${appId}`, {
+      method: 'DELETE'
+    })
+    toast.add({ title: 'Terhapus', description: `Aplikasi ${appId} berhasil dihapus!`, color: 'success' })
+    await fetchApps()
+  } catch (err: any) {
+    toast.add({ title: 'Gagal', description: err?.data?.message || 'Gagal menghapus aplikasi', color: 'error' })
+  }
+}
+
 async function handleCreateAccount() {
   try {
     const res: any = await $fetch(`${authApi}/auth/accounts`, {
       method: 'POST',
       body: newAccount
     })
-    toast.add({ title: 'Sukses', description: `Akun ${newAccount.username} berhasil dibuat! (auth_id: ${res.data.auth_id})`, color: 'success' })
+    toast.add({ title: 'Sukses', description: `Akun ${newAccount.username} berhasil dibuat!`, color: 'success' })
     newAssign.auth_id = res.data.auth_id
     newAccount.username = ''
     newAccount.password = ''
     newAccount.is_superadmin = false
+    await fetchAccounts()
   } catch (err: any) {
     toast.add({ title: 'Gagal', description: err?.data?.message || 'Gagal membuat akun', color: 'error' })
+  }
+}
+
+async function handleDeleteAccount(authId: string, username: string) {
+  if (username === 'superadmin') {
+    alert('Akun superadmin utama tidak boleh dihapus!')
+    return
+  }
+  if (!confirm(`Yakin ingin menghapus permanen akun '${username}'? Seluruh aksesnya akan dicabut.`)) return
+
+  try {
+    await $fetch(`${authApi}/auth/accounts/${authId}`, {
+      method: 'DELETE'
+    })
+    toast.add({ title: 'Terhapus', description: `Akun ${username} berhasil dihapus!`, color: 'success' })
+    await fetchAccounts()
+  } catch (err: any) {
+    toast.add({ title: 'Gagal', description: err?.data?.message || 'Gagal menghapus akun', color: 'error' })
   }
 }
 
@@ -89,6 +136,7 @@ async function handleAssignAccess() {
 
 onMounted(() => {
   fetchApps()
+  fetchAccounts()
 })
 </script>
 
@@ -131,7 +179,7 @@ onMounted(() => {
           @click="activeTab = 'apps'"
         >
           <UIcon name="i-lucide-layout-grid" class="w-4 h-4" />
-          <span>Daftar Client Apps</span>
+          <span>Daftar Client Apps ({{ apps.length }})</span>
         </button>
 
         <button
@@ -141,7 +189,7 @@ onMounted(() => {
           @click="activeTab = 'accounts'"
         >
           <UIcon name="i-lucide-users" class="w-4 h-4" />
-          <span>Kelola Akun Baru</span>
+          <span>Kelola Akun ({{ accounts.length }})</span>
         </button>
 
         <button
@@ -169,7 +217,7 @@ onMounted(() => {
               <label class="text-[11px] font-bold text-slate-600 uppercase">App ID</label>
               <input
                 v-model="newApp.app_id"
-                placeholder="misal: app-absensi"
+                placeholder="misal: kantor-virtual"
                 required
                 class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
               />
@@ -178,7 +226,7 @@ onMounted(() => {
               <label class="text-[11px] font-bold text-slate-600 uppercase">Nama Aplikasi</label>
               <input
                 v-model="newApp.app_nama"
-                placeholder="misal: Sistem Presensi Karyawan"
+                placeholder="misal: Layanan Kantor Virtual"
                 required
                 class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
@@ -219,7 +267,11 @@ onMounted(() => {
             </button>
           </div>
 
-          <div class="divide-y divide-slate-100">
+          <div v-if="apps.length === 0" class="py-8 text-center text-slate-400 text-xs">
+            Belum ada aplikasi yang terdaftar. Silakan daftarkan aplikasi pertama Anda di sebelah kiri.
+          </div>
+
+          <div v-else class="divide-y divide-slate-100">
             <div v-for="app in apps" :key="app.app_id" class="py-3.5 flex items-center justify-between">
               <div class="space-y-1">
                 <div class="flex items-center gap-2">
@@ -230,63 +282,129 @@ onMounted(() => {
                 </div>
                 <p class="text-xs text-slate-500">{{ app.app_deskripsi || 'Tidak ada keterangan tambahan' }}</p>
               </div>
-              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Aktif
-              </span>
+
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Aktif
+                </span>
+                <button
+                  type="button"
+                  title="Hapus Aplikasi"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  @click="handleDeleteApp(app.app_id)"
+                >
+                  <UIcon name="i-lucide-trash-2" class="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- TAB 2: ACCOUNTS -->
-      <div v-if="activeTab === 'accounts'" class="max-w-md mx-auto bg-white p-7 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-        <div class="border-b border-slate-100 pb-3">
-          <h3 class="text-sm font-bold text-slate-900">Daftarkan Akun Baru</h3>
-          <p class="text-xs text-slate-400">Buat kredensial login terpusat untuk pegawai atau admin</p>
+      <div v-if="activeTab === 'accounts'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Form Tambah User -->
+        <div class="md:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="border-b border-slate-100 pb-3">
+            <h3 class="text-sm font-bold text-slate-900">Daftarkan Akun Baru</h3>
+            <p class="text-xs text-slate-400">Buat kredensial login terpusat</p>
+          </div>
+
+          <form class="space-y-4" @submit.prevent="handleCreateAccount">
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-600 uppercase">Username Akun</label>
+              <input
+                v-model="newAccount.username"
+                placeholder="misal: budi_santoso"
+                required
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-600 uppercase">Password Awal</label>
+              <input
+                v-model="newAccount.password"
+                type="password"
+                placeholder="minimal 6 karakter"
+                required
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
+              />
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+              <input
+                id="is_superadmin_cb"
+                v-model="newAccount.is_superadmin"
+                type="checkbox"
+                class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 mt-0.5 cursor-pointer"
+              />
+              <label for="is_superadmin_cb" class="text-xs cursor-pointer">
+                <span class="font-bold text-slate-800 block">Jadikan Superadmin SSO</span>
+                <span class="text-slate-500 text-[11px]">Boleh membuka Web Auth ini</span>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <UIcon name="i-lucide-user-plus" class="w-4 h-4" />
+              <span>Simpan Akun Baru</span>
+            </button>
+          </form>
         </div>
 
-        <form class="space-y-4" @submit.prevent="handleCreateAccount">
-          <div class="space-y-1">
-            <label class="text-[11px] font-bold text-slate-600 uppercase">Username Akun</label>
-            <input
-              v-model="newAccount.username"
-              placeholder="misal: budi_santoso"
-              required
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
-            />
-          </div>
-          <div class="space-y-1">
-            <label class="text-[11px] font-bold text-slate-600 uppercase">Password Awal</label>
-            <input
-              v-model="newAccount.password"
-              type="password"
-              placeholder="minimal 6 karakter"
-              required
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
-            />
+        <!-- List Akun Terdaftar -->
+        <div class="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Daftar Akun SSO ({{ accounts.length }})</h3>
+              <p class="text-xs text-slate-400">Seluruh kredensial akun yang tersimpan di sistem Auth</p>
+            </div>
+            <button
+              type="button"
+              class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+              :class="{ 'animate-spin': isLoadingAccounts }"
+              @click="fetchAccounts"
+            >
+              <UIcon name="i-lucide-rotate-cw" class="w-4 h-4" />
+            </button>
           </div>
 
-          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-            <input
-              id="is_superadmin_cb"
-              v-model="newAccount.is_superadmin"
-              type="checkbox"
-              class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 mt-0.5 cursor-pointer"
-            />
-            <label for="is_superadmin_cb" class="text-xs cursor-pointer">
-              <span class="font-bold text-slate-800 block">Jadikan Superadmin SSO</span>
-              <span class="text-slate-500 text-[11px]">Centang hanya jika user ini boleh membuka Web Auth ini</span>
-            </label>
-          </div>
+          <div class="divide-y divide-slate-100">
+            <div v-for="acc in accounts" :key="acc.auth_id" class="py-3.5 flex items-center justify-between">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-sm text-slate-900">{{ acc.auth_username }}</span>
+                  <span v-if="acc.auth_is_superadmin" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    SSO Superadmin
+                  </span>
+                </div>
+                <p class="text-xs font-mono text-slate-400">ID: {{ acc.auth_id }}</p>
+              </div>
 
-          <button
-            type="submit"
-            class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-          >
-            <UIcon name="i-lucide-user-plus" class="w-4 h-4" />
-            <span>Simpan Akun Baru</span>
-          </button>
-        </form>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  title="Salin Auth ID"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                  @click="newAssign.auth_id = acc.auth_id; activeTab = 'assign'"
+                >
+                  <UIcon name="i-lucide-link" class="w-4 h-4" />
+                </button>
+                <button
+                  v-if="acc.auth_username !== 'superadmin'"
+                  type="button"
+                  title="Hapus Akun"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  @click="handleDeleteAccount(acc.auth_id, acc.auth_username)"
+                >
+                  <UIcon name="i-lucide-trash-2" class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 3: ASSIGN ACCESS -->
@@ -305,11 +423,11 @@ onMounted(() => {
               required
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
             />
-            <p class="text-[11px] text-slate-400">Didapatkan saat akun pertama kali dibuat</p>
+            <p class="text-[11px] text-slate-400">Pilih icon tautan pada tab 'Kelola Akun' untuk mengisi otomatis</p>
           </div>
 
           <div class="space-y-1">
-            <label class="text-[11px] font-bold text-slate-600 uppercase">Pilih Aplikasi</label>
+            <label class="text-[11px] font-bold text-slate-600 uppercase">Pilih Aplikasi Target</label>
             <select
               v-model="newAssign.app_id"
               required
