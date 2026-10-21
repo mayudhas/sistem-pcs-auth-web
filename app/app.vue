@@ -20,7 +20,9 @@ colorMode.preference = 'light'
 <template>
   <UApp>
     <div class="min-h-screen bg-slate-50 text-slate-800 antialiased font-sans selection:bg-blue-100 selection:text-blue-900">
-      <NuxtPage />
+      <NuxtLayout>
+        <NuxtPage />
+      </NuxtLayout>
     </div>
   </UApp>
 </template>
