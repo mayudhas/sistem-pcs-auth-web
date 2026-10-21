@@ -3,8 +3,7 @@ definePageMeta({
   middleware: 'admin'
 })
 
-const config = useRuntimeConfig()
-const authApi = config.public.authApiBase
+const authApi = '/api/auth-proxy'
 const toast = useToast()
 
 // Data state

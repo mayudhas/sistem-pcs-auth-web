@@ -1,6 +1,5 @@
 <script setup lang="ts">
-const config = useRuntimeConfig()
-const authApi = config.public.authApiBase
+const authApi = '/api/auth-proxy'
 const toast = useToast()
 
 const form = reactive({

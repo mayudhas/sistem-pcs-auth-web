@@ -12,9 +12,9 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
-    public: {
-      authApiBase: process.env.NUXT_PUBLIC_AUTH_API_BASE || 'http://localhost:3001/api/v1'
-    }
+    // Secret server-only keys (tidak diekspos ke client browser)
+    authServiceInternalUrl: process.env.AUTH_SERVICE_INTERNAL_URL,
+    public: {}
   },
 
   compatibilityDate: '2026-06-30'
