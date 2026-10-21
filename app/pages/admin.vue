@@ -21,7 +21,8 @@ const newApp = reactive({
 
 const newAccount = reactive({
   username: '',
-  password: ''
+  password: '',
+  is_superadmin: false
 })
 
 const newAssign = reactive({
@@ -202,6 +203,13 @@ onMounted(() => {
             <UFormField label="Password Awal">
               <UInput v-model="newAccount.password" type="password" placeholder="minimal 6 karakter" required icon="i-lucide-lock" />
             </UFormField>
+            <div class="flex items-center gap-2 p-3 bg-neutral-100 dark:bg-neutral-900 rounded-lg">
+              <UCheckbox v-model="newAccount.is_superadmin" />
+              <div>
+                <p class="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Hak Akses Superadmin SSO</p>
+                <p class="text-[11px] text-neutral-500">Centang hanya jika user ini boleh mengelola Web Auth ini</p>
+              </div>
+            </div>
             <UButton type="submit" block size="sm" icon="i-lucide-user-plus">
               Simpan Akun
             </UButton>

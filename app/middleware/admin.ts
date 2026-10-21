@@ -10,7 +10,8 @@ export default defineNuxtRouteMiddleware(() => {
 
   try {
     const user = JSON.parse(userStr)
-    if (user.username !== 'superadmin' && user.app_role !== 'SUPERADMIN') {
+    // Hanya Superadmin Web Auth yang boleh masuk ke Admin Console
+    if (!user.is_superadmin) {
       return navigateTo('/')
     }
   } catch {
