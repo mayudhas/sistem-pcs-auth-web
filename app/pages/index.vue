@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const config = useRuntimeConfig()
 const authApi = config.public.authApiBase
+const toast = useToast()
 
 const form = reactive({
   username: '',
@@ -11,8 +12,19 @@ const form = reactive({
 const isLoading = ref(false)
 const errorMessage = ref('')
 const loginSuccessData = ref<any>(null)
+const availableApps = ref<any[]>([])
 
-const toast = useToast()
+async function fetchApps() {
+  try {
+    const res: any = await $fetch(`${authApi}/apps`)
+    availableApps.value = res.data?.filter((a: any) => a.app_is_active) || []
+    if (availableApps.value.length > 0 && !form.app_id) {
+      form.app_id = availableApps.value[0].app_id
+    }
+  } catch (err: any) {
+    console.error(err)
+  }
+}
 
 async function handleLogin() {
   isLoading.value = true
@@ -45,6 +57,10 @@ async function handleLogin() {
     isLoading.value = false
   }
 }
+
+onMounted(() => {
+  fetchApps()
+})
 </script>
 
 <template>
@@ -100,10 +116,7 @@ async function handleLogin() {
           <UFormField label="Target Aplikasi" name="app_id">
             <USelect
               v-model="form.app_id"
-              :items="[
-                { label: 'Sistem PCS (Struktur Organisasi)', value: 'sistem-pcs' },
-                { label: 'Aplikasi Absensi (Simulasi)', value: 'app-absensi' }
-              ]"
+              :items="availableApps.map(a => ({ label: a.app_nama, value: a.app_id }))"
               class="w-full"
             />
           </UFormField>
