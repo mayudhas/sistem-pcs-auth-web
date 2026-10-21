@@ -1,4 +1,8 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: 'admin'
+})
+
 const config = useRuntimeConfig()
 const authApi = config.public.authApiBase
 const toast = useToast()

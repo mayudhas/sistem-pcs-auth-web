@@ -172,11 +172,8 @@ onMounted(() => {
       </div>
 
       <template #footer>
-        <div class="flex justify-between items-center text-xs text-neutral-400">
-          <span>SSO Engine: RS256 Asymmetric</span>
-          <NuxtLink to="/admin" class="hover:underline text-primary">
-            Admin Console →
-          </NuxtLink>
+        <div class="text-center text-xs text-neutral-400">
+          <span>SSO Engine: RS256 Asymmetric Cryptography</span>
         </div>
       </template>
     </UCard>
