@@ -473,6 +473,7 @@ onMounted(() => {
 
               <div class="flex items-center gap-2">
                 <button
+                  v-if="acc.auth_username !== 'superadmin'"
                   type="button"
                   title="Hubungkan User ini ke Aplikasi"
                   class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
@@ -504,14 +505,24 @@ onMounted(() => {
 
         <form class="space-y-4" @submit.prevent="handleAssignAccess">
           <div class="space-y-1">
-            <label class="text-[11px] font-bold text-slate-600 uppercase">Auth ID (UUID User)</label>
-            <input
+            <label class="text-[11px] font-bold text-slate-600 uppercase">Pilih Akun / User</label>
+            <select
               v-model="newAssign.auth_id"
-              placeholder="01a15c..."
               required
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
-            />
-            <p class="text-[11px] text-slate-400">Pilih icon tautan pada tab 'Kelola Akun SSO' untuk mengisi otomatis</p>
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white font-medium"
+            >
+              <option value="" disabled>-- Pilih Pengguna Pegawai --</option>
+              <option
+                v-for="acc in accounts.filter((a) => a.auth_username !== 'superadmin')"
+                :key="acc.auth_id"
+                :value="acc.auth_id"
+              >
+                {{ acc.auth_username }} ({{ acc.auth_id }})
+              </option>
+            </select>
+            <p v-if="accounts.filter((a) => a.auth_username !== 'superadmin').length === 0" class="text-[11px] text-amber-600 mt-1">
+              Belum ada akun pengguna pegawai selain superadmin. Buat akun baru di tab 'Kelola Akun SSO'.
+            </p>
           </div>
 
           <div class="space-y-1">
