@@ -13,6 +13,16 @@ const accounts = ref<any[]>([])
 const isLoadingApps = ref(false)
 const isLoadingAccounts = ref(false)
 
+// Role management modal state
+const selectedAppForRoles = ref<any>(null)
+const appRoles = ref<any[]>([])
+const isLoadingRoles = ref(false)
+const newRole = reactive({
+  role_code: '',
+  role_nama: '',
+  role_deskripsi: ''
+})
+
 // Forms
 const newApp = reactive({
   app_id: '',
@@ -29,8 +39,9 @@ const newAccount = reactive({
 const newAssign = reactive({
   auth_id: '',
   app_id: '',
-  app_role: 'ADMIN'
+  app_role: ''
 })
+const availableRolesForAssign = ref<any[]>([])
 
 async function fetchApps() {
   isLoadingApps.value = true
@@ -62,7 +73,7 @@ async function handleCreateApp() {
       method: 'POST',
       body: newApp
     })
-    toast.add({ title: 'Sukses', description: `Aplikasi ${newApp.app_nama} terdaftar!`, color: 'success' })
+    toast.add({ title: 'Sukses', description: 'Aplikasi berhasil didaftarkan!', color: 'success' })
     newApp.app_id = ''
     newApp.app_nama = ''
     newApp.app_deskripsi = ''
@@ -73,7 +84,7 @@ async function handleCreateApp() {
 }
 
 async function handleDeleteApp(appId: string) {
-  if (!confirm(`Yakin ingin menghapus aplikasi '${appId}' dari SSO?`)) return
+  if (!confirm(`Yakin ingin menghapus aplikasi '${appId}'? Seluruh role dan mapping user di aplikasi ini akan dihapus.`)) return
 
   try {
     await $fetch(`${authApi}/apps/${appId}`, {
@@ -92,8 +103,11 @@ async function handleCreateAccount() {
       method: 'POST',
       body: newAccount
     })
-    toast.add({ title: 'Sukses', description: `Akun ${newAccount.username} berhasil dibuat!`, color: 'success' })
-    newAssign.auth_id = res.data.auth_id
+    toast.add({
+      title: 'Akun Terdaftar',
+      description: `User '${res.data.auth_username}' berhasil dibuat. Auth ID: ${res.data.auth_id}`,
+      color: 'success'
+    })
     newAccount.username = ''
     newAccount.password = ''
     newAccount.is_superadmin = false
@@ -120,6 +134,71 @@ async function handleDeleteAccount(authId: string, username: string) {
     toast.add({ title: 'Gagal', description: err?.data?.message || 'Gagal menghapus akun', color: 'error' })
   }
 }
+
+// Roles modal actions
+async function openRolesModal(app: any) {
+  selectedAppForRoles.value = app
+  await fetchAppRoles(app.app_id)
+}
+
+async function fetchAppRoles(appId: string) {
+  isLoadingRoles.value = true
+  try {
+    const res: any = await $fetch(`${authApi}/apps/${appId}/roles`)
+    appRoles.value = res.data || []
+  } catch (err: any) {
+    console.error(err)
+  } finally {
+    isLoadingRoles.value = false
+  }
+}
+
+async function handleAddRole() {
+  if (!selectedAppForRoles.value) return
+  try {
+    await $fetch(`${authApi}/apps/${selectedAppForRoles.value.app_id}/roles`, {
+      method: 'POST',
+      body: {
+        role_code: newRole.role_code.trim().toUpperCase(),
+        role_nama: newRole.role_nama.trim(),
+        role_deskripsi: newRole.role_deskripsi.trim() || undefined
+      }
+    })
+    toast.add({ title: 'Role Ditambahkan', description: `Role ${newRole.role_code} berhasil dibuat`, color: 'success' })
+    newRole.role_code = ''
+    newRole.role_nama = ''
+    newRole.role_deskripsi = ''
+    await fetchAppRoles(selectedAppForRoles.value.app_id)
+  } catch (err: any) {
+    toast.add({ title: 'Gagal', description: err?.data?.message || 'Gagal menambah role', color: 'error' })
+  }
+}
+
+async function handleDeleteRole(roleId: string, roleCode: string) {
+  if (!confirm(`Hapus role '${roleCode}' dari aplikasi ini?`)) return
+  try {
+    await $fetch(`${authApi}/apps/${selectedAppForRoles.value.app_id}/roles/${roleId}`, {
+      method: 'DELETE'
+    })
+    toast.add({ title: 'Role Dihapus', description: `Role ${roleCode} berhasil dihapus`, color: 'success' })
+    await fetchAppRoles(selectedAppForRoles.value.app_id)
+  } catch (err: any) {
+    toast.add({ title: 'Gagal', description: err?.data?.message || 'Gagal menghapus role', color: 'error' })
+  }
+}
+
+// Watch app_id in Assign Tab to load defined roles
+watch(() => newAssign.app_id, async (appId) => {
+  newAssign.app_role = ''
+  availableRolesForAssign.value = []
+  if (!appId) return
+  try {
+    const res: any = await $fetch(`${authApi}/apps/${appId}/roles`)
+    availableRolesForAssign.value = res.data || []
+  } catch (e) {
+    console.error(e)
+  }
+})
 
 async function handleAssignAccess() {
   try {
@@ -154,89 +233,87 @@ onMounted(() => {
               Khusus Superadmin SSO
             </span>
           </div>
-          <p class="text-xs text-slate-400">Pusat kontrol aplikasi satelit, akun, dan penetapan role</p>
+          <p class="text-xs text-slate-400">Pusat kontrol aplikasi satelit, peran (roles), akun, dan penetapan akses</p>
         </div>
       </div>
       <NuxtLink
         to="/"
-        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+        class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
       >
-        <UIcon name="i-lucide-arrow-left" class="w-3.5 h-3.5" />
-        <span>Kembali ke Portal</span>
+        <UIcon name="i-lucide-arrow-left" class="w-4 h-4" />
+        <span>Kembali ke Portal SSO</span>
       </NuxtLink>
     </header>
 
-    <!-- Main Workspace -->
-    <div class="max-w-6xl mx-auto p-8 space-y-6">
-      
-      <!-- Navigasi Tab Modern -->
-      <div class="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-fit">
+    <div class="max-w-6xl mx-auto px-6 py-8 space-y-6">
+      <!-- Tabs Navigation -->
+      <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
         <button
           type="button"
-          class="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
-          :class="activeTab === 'apps' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+          class="px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2"
+          :class="activeTab === 'apps' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'"
           @click="activeTab = 'apps'"
         >
           <UIcon name="i-lucide-layout-grid" class="w-4 h-4" />
-          <span>Daftar Client Apps ({{ apps.length }})</span>
+          <span>Kelola Aplikasi & Peran</span>
         </button>
 
         <button
           type="button"
-          class="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
-          :class="activeTab === 'accounts' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+          class="px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2"
+          :class="activeTab === 'accounts' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'"
           @click="activeTab = 'accounts'"
         >
           <UIcon name="i-lucide-users" class="w-4 h-4" />
-          <span>Kelola Akun ({{ accounts.length }})</span>
+          <span>Kelola Akun SSO</span>
         </button>
 
         <button
           type="button"
-          class="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
-          :class="activeTab === 'assign' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+          class="px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2"
+          :class="activeTab === 'assign' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'"
           @click="activeTab = 'assign'"
         >
-          <UIcon name="i-lucide-key-round" class="w-4 h-4" />
-          <span>Penugasan Hak Akses</span>
+          <UIcon name="i-lucide-link" class="w-4 h-4" />
+          <span>Hubungkan User ke Aplikasi</span>
         </button>
       </div>
 
-      <!-- TAB 1: CLIENT APPS -->
+      <!-- TAB 1: KELOLA APLIKASI -->
       <div v-if="activeTab === 'apps'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Form Tambah App -->
-        <div class="md:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <!-- Form Add App -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 h-fit">
           <div class="border-b border-slate-100 pb-3">
             <h3 class="text-sm font-bold text-slate-900">Daftarkan Aplikasi Baru</h3>
-            <p class="text-xs text-slate-400">Tambahkan sistem satelit yang akan diintegrasikan</p>
+            <p class="text-xs text-slate-400">Hubungkan sistem satelit baru ke autentikasi SSO</p>
           </div>
 
           <form class="space-y-3.5" @submit.prevent="handleCreateApp">
             <div class="space-y-1">
-              <label class="text-[11px] font-bold text-slate-600 uppercase">App ID</label>
+              <label class="text-[11px] font-bold text-slate-600 uppercase">App ID (Kunci Unik)</label>
               <input
                 v-model="newApp.app_id"
-                placeholder="misal: kantor-virtual"
+                placeholder="misal: kantor-virtual, helpdesk"
                 required
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
               />
             </div>
             <div class="space-y-1">
               <label class="text-[11px] font-bold text-slate-600 uppercase">Nama Aplikasi</label>
               <input
                 v-model="newApp.app_nama"
-                placeholder="misal: Layanan Kantor Virtual"
+                placeholder="misal: Kantor Virtual Kepegawaian"
                 required
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
               />
             </div>
             <div class="space-y-1">
               <label class="text-[11px] font-bold text-slate-600 uppercase">Deskripsi</label>
               <textarea
                 v-model="newApp.app_deskripsi"
-                placeholder="Keterangan singkat..."
-                rows="2"
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none"
+                placeholder="Keterangan singkat peran atau fungsi sistem ini..."
+                rows="3"
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none font-medium"
               ></textarea>
             </div>
             <button
@@ -254,7 +331,7 @@ onMounted(() => {
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 class="text-sm font-bold text-slate-900">Aplikasi Terdaftar ({{ apps.length }})</h3>
-              <p class="text-xs text-slate-400">Sistem yang sudah dapat menerbitkan token SSO</p>
+              <p class="text-xs text-slate-400">Atur peran aplikasi dan izin akses token SSO</p>
             </div>
             <button
               type="button"
@@ -283,9 +360,14 @@ onMounted(() => {
               </div>
 
               <div class="flex items-center gap-2">
-                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Aktif
-                </span>
+                <button
+                  type="button"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                  @click="openRolesModal(app)"
+                >
+                  <UIcon name="i-lucide-shield" class="w-3.5 h-3.5" />
+                  <span>Kelola Role</span>
+                </button>
                 <button
                   type="button"
                   title="Hapus Aplikasi"
@@ -300,47 +382,47 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- TAB 2: ACCOUNTS -->
+      <!-- TAB 2: KELOLA AKUN SSO -->
       <div v-if="activeTab === 'accounts'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Form Tambah User -->
-        <div class="md:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <!-- Form Add Account -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 h-fit">
           <div class="border-b border-slate-100 pb-3">
-            <h3 class="text-sm font-bold text-slate-900">Daftarkan Akun Baru</h3>
-            <p class="text-xs text-slate-400">Buat kredensial login terpusat</p>
+            <h3 class="text-sm font-bold text-slate-900">Tambah Akun Pegawai / User</h3>
+            <p class="text-xs text-slate-400">Akun ini berlaku universal di semua aplikasi terhubung</p>
           </div>
 
-          <form class="space-y-4" @submit.prevent="handleCreateAccount">
+          <form class="space-y-3.5" @submit.prevent="handleCreateAccount">
             <div class="space-y-1">
-              <label class="text-[11px] font-bold text-slate-600 uppercase">Username Akun</label>
+              <label class="text-[11px] font-bold text-slate-600 uppercase">Username Login</label>
               <input
                 v-model="newAccount.username"
-                placeholder="misal: budi_santoso"
+                placeholder="misal: budi.santoso"
                 required
                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
               />
             </div>
+
             <div class="space-y-1">
               <label class="text-[11px] font-bold text-slate-600 uppercase">Password Awal</label>
               <input
                 v-model="newAccount.password"
                 type="password"
-                placeholder="minimal 6 karakter"
+                placeholder="Minimal 6 karakter"
                 required
                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
               />
             </div>
 
-            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-              <input
-                id="is_superadmin_cb"
-                v-model="newAccount.is_superadmin"
-                type="checkbox"
-                class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 mt-0.5 cursor-pointer"
-              />
-              <label for="is_superadmin_cb" class="text-xs cursor-pointer">
-                <span class="font-bold text-slate-800 block">Jadikan Superadmin SSO</span>
-                <span class="text-slate-500 text-[11px]">Boleh membuka Web Auth ini</span>
+            <div class="pt-1">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  v-model="newAccount.is_superadmin"
+                  type="checkbox"
+                  class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500/20 border-slate-300"
+                />
+                <span class="text-xs text-slate-700 font-medium">Jadikan Superadmin SSO (Web Auth)</span>
               </label>
+              <p class="text-[11px] text-slate-400 mt-1">Superadmin SSO dapat mendaftarkan aplikasi & mapping user di console ini.</p>
             </div>
 
             <button
@@ -348,17 +430,17 @@ onMounted(() => {
               class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
               <UIcon name="i-lucide-user-plus" class="w-4 h-4" />
-              <span>Simpan Akun Baru</span>
+              <span>Daftarkan Akun</span>
             </button>
           </form>
         </div>
 
-        <!-- List Akun Terdaftar -->
+        <!-- List Accounts -->
         <div class="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 class="text-sm font-bold text-slate-900">Daftar Akun SSO ({{ accounts.length }})</h3>
-              <p class="text-xs text-slate-400">Seluruh kredensial akun yang tersimpan di sistem Auth</p>
+              <p class="text-xs text-slate-400">Semua user yang memiliki kredensial login SSO terpusat</p>
             </div>
             <button
               type="button"
@@ -370,13 +452,20 @@ onMounted(() => {
             </button>
           </div>
 
-          <div class="divide-y divide-slate-100">
-            <div v-for="acc in accounts" :key="acc.auth_id" class="py-3.5 flex items-center justify-between">
-              <div class="space-y-1">
+          <div v-if="accounts.length === 0" class="py-8 text-center text-slate-400 text-xs">
+            Belum ada akun pengguna. Silakan daftarkan akun baru di sebelah kiri.
+          </div>
+
+          <div v-else class="divide-y divide-slate-100">
+            <div v-for="acc in accounts" :key="acc.auth_id" class="py-3 flex items-center justify-between">
+              <div class="space-y-0.5">
                 <div class="flex items-center gap-2">
                   <span class="font-bold text-sm text-slate-900">{{ acc.auth_username }}</span>
-                  <span v-if="acc.auth_is_superadmin" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                    SSO Superadmin
+                  <span
+                    v-if="acc.auth_is_superadmin"
+                    class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200"
+                  >
+                    Superadmin IAM
                   </span>
                 </div>
                 <p class="text-xs font-mono text-slate-400">ID: {{ acc.auth_id }}</p>
@@ -385,7 +474,7 @@ onMounted(() => {
               <div class="flex items-center gap-2">
                 <button
                   type="button"
-                  title="Salin Auth ID"
+                  title="Hubungkan User ini ke Aplikasi"
                   class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                   @click="newAssign.auth_id = acc.auth_id; activeTab = 'assign'"
                 >
@@ -410,7 +499,7 @@ onMounted(() => {
       <div v-if="activeTab === 'assign'" class="max-w-md mx-auto bg-white p-7 rounded-2xl border border-slate-200 shadow-sm space-y-5">
         <div class="border-b border-slate-100 pb-3">
           <h3 class="text-sm font-bold text-slate-900">Tetapkan Hak Akses Aplikasi</h3>
-          <p class="text-xs text-slate-400">Mapping user ke sistem yang diizinkan beserta rolenya</p>
+          <p class="text-xs text-slate-400">Mapping user ke sistem yang diizinkan sesuai role yang tersedia</p>
         </div>
 
         <form class="space-y-4" @submit.prevent="handleAssignAccess">
@@ -422,7 +511,7 @@ onMounted(() => {
               required
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
             />
-            <p class="text-[11px] text-slate-400">Pilih icon tautan pada tab 'Kelola Akun' untuk mengisi otomatis</p>
+            <p class="text-[11px] text-slate-400">Pilih icon tautan pada tab 'Kelola Akun SSO' untuk mengisi otomatis</p>
           </div>
 
           <div class="space-y-1">
@@ -441,12 +530,31 @@ onMounted(() => {
 
           <div class="space-y-1">
             <label class="text-[11px] font-bold text-slate-600 uppercase">Role di Aplikasi Ini</label>
-            <input
+            <!-- Jika aplikasi memiliki role terdaftar, tampilkan dropdown -->
+            <select
+              v-if="availableRolesForAssign.length > 0"
               v-model="newAssign.app_role"
-              placeholder="misal: SUPERADMIN, ADMIN, VIEWER"
               required
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
-            />
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white font-medium"
+            >
+              <option value="" disabled>-- Pilih Role Terdaftar --</option>
+              <option v-for="r in availableRolesForAssign" :key="r.role_id" :value="r.role_code">
+                {{ r.role_nama }} ({{ r.role_code }})
+              </option>
+            </select>
+
+            <!-- Jika belum ada role terdaftar, fallback text input dengan helper -->
+            <div v-else>
+              <input
+                v-model="newAssign.app_role"
+                placeholder="misal: SUPERADMIN, ADMIN, VIEWER"
+                required
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium"
+              />
+              <p class="text-[11px] text-slate-400 mt-1">
+                Tip: Daftarkan role di tab 'Kelola Aplikasi' > 'Kelola Role' agar menjadi dropdown resmi.
+              </p>
+            </div>
           </div>
 
           <button
@@ -457,6 +565,104 @@ onMounted(() => {
             <span>Simpan Hak Akses</span>
           </button>
         </form>
+      </div>
+
+      <!-- MODAL KELOLA ROLE PER APLIKASI -->
+      <div
+        v-if="selectedAppForRoles"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      >
+        <div class="bg-white w-full max-w-xl rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">
+                Kelola Role: {{ selectedAppForRoles.app_nama }}
+              </h3>
+              <p class="text-xs text-slate-400 font-mono">App ID: {{ selectedAppForRoles.app_id }}</p>
+            </div>
+            <button
+              type="button"
+              class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+              @click="selectedAppForRoles = null"
+            >
+              <UIcon name="i-lucide-x" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="p-6 space-y-6">
+            <!-- Form Tambah Role -->
+            <form class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3" @submit.prevent="handleAddRole">
+              <h4 class="text-xs font-bold text-slate-800">Tambah Role Baru untuk Aplikasi Ini</h4>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label class="text-[10px] font-bold text-slate-500 uppercase">Kode Role (Kapital)</label>
+                  <input
+                    v-model="newRole.role_code"
+                    placeholder="ADMIN_HR"
+                    required
+                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono uppercase bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div class="space-y-1">
+                  <label class="text-[10px] font-bold text-slate-500 uppercase">Nama Role</label>
+                  <input
+                    v-model="newRole.role_nama"
+                    placeholder="Admin Personalia"
+                    required
+                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase">Deskripsi (Opsional)</label>
+                <input
+                  v-model="newRole.role_deskripsi"
+                  placeholder="Mengelola data struktur dan pegawai..."
+                  class="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                type="submit"
+                class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+              >
+                <UIcon name="i-lucide-plus" class="w-4 h-4" />
+                <span>Tambah Role</span>
+              </button>
+            </form>
+
+            <!-- List Roles yang sudah ada -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-700">Daftar Role Terdaftar ({{ appRoles.length }})</span>
+                <span v-if="isLoadingRoles" class="text-xs text-slate-400">Memuat...</span>
+              </div>
+
+              <div v-if="appRoles.length === 0" class="py-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                Belum ada role khusus yang didaftarkan untuk aplikasi ini.
+              </div>
+
+              <div v-else class="divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                <div v-for="r in appRoles" :key="r.role_id" class="py-2.5 flex items-center justify-between">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="font-bold text-xs text-slate-900 font-mono bg-slate-100 px-1.5 py-0.5 rounded">{{ r.role_code }}</span>
+                      <span class="text-xs font-medium text-slate-700">{{ r.role_nama }}</span>
+                    </div>
+                    <p v-if="r.role_deskripsi" class="text-[11px] text-slate-400 mt-0.5">{{ r.role_deskripsi }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    class="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                    title="Hapus Role"
+                    @click="handleDeleteRole(r.role_id, r.role_code)"
+                  >
+                    <UIcon name="i-lucide-trash-2" class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
