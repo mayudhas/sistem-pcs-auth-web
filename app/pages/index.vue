@@ -75,7 +75,7 @@ async function handleLogin() {
         />
 
         <form class="space-y-4" @submit.prevent="handleLogin">
-          <UFormField label="Username / NIP" name="username">
+          <UFormField label="Username" name="username">
             <UInput
               v-model="form.username"
               placeholder="Contoh: superadmin"

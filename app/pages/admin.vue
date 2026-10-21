@@ -192,8 +192,8 @@ onMounted(() => {
             <h3 class="font-semibold text-sm">Buat Akun Kredensial Baru</h3>
           </template>
           <form class="space-y-4" @submit.prevent="handleCreateAccount">
-            <UFormField label="Username / NIP">
-              <UInput v-model="newAccount.username" placeholder="contoh: 199401012022011001" required icon="i-lucide-user" />
+            <UFormField label="Username">
+              <UInput v-model="newAccount.username" placeholder="contoh: budi_santoso" required icon="i-lucide-user" />
             </UFormField>
             <UFormField label="Password Awal">
               <UInput v-model="newAccount.password" type="password" placeholder="minimal 6 karakter" required icon="i-lucide-lock" />
