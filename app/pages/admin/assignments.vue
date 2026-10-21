@@ -13,6 +13,7 @@ const accounts = ref<any[]>([])
 const appUsers = ref<any[]>([])
 const availableRolesForAssign = ref<any[]>([])
 const isLoadingAppUsers = ref(false)
+const selectedAssignmentForEdit = ref<any>(null)
 
 const newAssign = reactive({
   auth_id: (route.query.auth_id as string) || '',
@@ -233,16 +234,35 @@ onMounted(() => {
             <p class="text-xs font-mono text-slate-400">Auth ID: {{ item.auth_id }}</p>
           </div>
 
-          <button
-            type="button"
-            title="Cabut Akses Pengguna"
-            class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-            @click="handleRevokeAccess(item.account_app_id, item.account?.auth_username)"
-          >
-            <UIcon name="i-lucide-user-x" class="w-4 h-4" />
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              title="Ubah Role"
+              class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+              @click="selectedAssignmentForEdit = item"
+            >
+              <UIcon name="i-lucide-pencil" class="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              title="Cabut Akses Pengguna"
+              class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              @click="handleRevokeAccess(item.account_app_id, item.account?.auth_username)"
+            >
+              <UIcon name="i-lucide-user-x" class="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Modal Edit Role Pengguna -->
+    <EditAssignmentRoleModal
+      v-if="selectedAssignmentForEdit"
+      :assignment="selectedAssignmentForEdit"
+      :available-roles="availableRolesForAssign"
+      @close="selectedAssignmentForEdit = null"
+      @success="fetchAppUsers(newAssign.app_id)"
+    />
   </div>
 </template>

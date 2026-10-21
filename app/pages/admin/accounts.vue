@@ -9,6 +9,7 @@ const toast = useToast()
 
 const accounts = ref<any[]>([])
 const isLoadingAccounts = ref(false)
+const selectedAccountForPassword = ref<any>(null)
 
 const newAccount = reactive({
   username: '',
@@ -161,6 +162,14 @@ onMounted(() => {
           </div>
 
           <div class="flex items-center gap-2">
+            <button
+              type="button"
+              title="Ganti Password"
+              class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+              @click="selectedAccountForPassword = acc"
+            >
+              <UIcon name="i-lucide-key-round" class="w-4 h-4" />
+            </button>
             <NuxtLink
               v-if="acc.auth_username !== 'superadmin'"
               :to="{ path: '/admin/assignments', query: { auth_id: acc.auth_id } }"
@@ -182,5 +191,13 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Modal Ganti Password -->
+    <ChangePasswordModal
+      v-if="selectedAccountForPassword"
+      :account="selectedAccountForPassword"
+      @close="selectedAccountForPassword = null"
+      @success="fetchAccounts"
+    />
   </div>
 </template>
